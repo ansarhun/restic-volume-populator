@@ -25,12 +25,29 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
+
+	implementation 'io.fabric8:kubernetes-client'
+	implementation 'org.bouncycastle:bcpkix-jdk18on'
+
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
+
+	testAndDevelopmentOnly 'org.springframework.boot:spring-boot-devtools'
+
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation 'io.projectreactor:reactor-test'
 	testImplementation 'org.testcontainers:junit-jupiter'
+
+	testImplementation 'org.testcontainers:k3s'
+
+	testImplementation 'io.fabric8:kubernetes-server-mock'
+}
+
+dependencyManagement {
+	imports {
+		mavenBom 'io.fabric8:kubernetes-client:6.10.0'
+	}
 }
 
 tasks.named('test') {
