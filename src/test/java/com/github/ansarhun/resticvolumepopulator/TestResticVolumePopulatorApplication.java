@@ -22,7 +22,7 @@ public class TestResticVolumePopulatorApplication {
 	@RestartScope
 	public K3sContainer k3sContainer() {
 		return new K3sContainer(
-				DockerImageName.parse("rancher/k3s:v1.29.2-k3s1")
+				DockerImageName.parse(Versions.K3S_VERSION)
 		);
 	}
 

@@ -42,6 +42,7 @@ dependencies {
 	testImplementation 'org.testcontainers:junit-jupiter'
 
 	testImplementation 'org.testcontainers:k3s'
+	testImplementation "org.testcontainers:minio"
 
 	testImplementation 'io.fabric8:kubernetes-server-mock'
 }

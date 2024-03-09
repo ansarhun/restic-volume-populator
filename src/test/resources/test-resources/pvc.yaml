@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 5Mi
+  dataSourceRef:
+    apiGroup: ansarhun.github.com
+    kind: ResticVolumePopulator
+    name: test-populator
