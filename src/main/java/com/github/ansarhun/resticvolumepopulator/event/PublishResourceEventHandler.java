@@ -12,7 +12,7 @@ public class PublishResourceEventHandler<T> implements ResourceEventHandler<T> {
 
     @Override
     public void onAdd(T obj) {
-        log.debug("onAdd: {}", obj);
+        log.trace("onAdd: {}", obj);
         applicationEventPublisher.publishEvent(
                 new ResourceAdded<>(obj)
         );
@@ -20,13 +20,13 @@ public class PublishResourceEventHandler<T> implements ResourceEventHandler<T> {
 
     @Override
     public void onUpdate(T oldObj, T newObj) {
-        log.debug("onUpdate: {}", newObj);
+        log.trace("onUpdate: {} -> {}", oldObj, newObj);
         applicationEventPublisher.publishEvent(new ResourceUpdated<>(oldObj, newObj));
     }
 
     @Override
     public void onDelete(T obj, boolean deletedFinalStateUnknown) {
-        log.debug("onDelete: {}", obj);
+        log.trace("onDelete: {}", obj);
         applicationEventPublisher.publishEvent(new ResourceRemoved<>(obj));
     }
 }
