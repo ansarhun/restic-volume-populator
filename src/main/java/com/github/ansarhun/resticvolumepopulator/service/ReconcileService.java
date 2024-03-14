@@ -5,20 +5,24 @@ import com.github.ansarhun.resticvolumepopulator.event.ResourceUpdated;
 import com.github.ansarhun.resticvolumepopulator.k8s.ResticVolumePopulator;
 import com.github.ansarhun.resticvolumepopulator.k8s.ResticVolumePopulatorStatus;
 import io.fabric8.kubernetes.api.model.*;
+import io.fabric8.kubernetes.api.model.events.v1.EventBuilder;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.dsl.base.PatchContext;
 import io.fabric8.kubernetes.client.dsl.base.PatchType;
 import io.fabric8.kubernetes.client.informers.SharedIndexInformer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 
@@ -40,6 +44,9 @@ public class ReconcileService {
 
     private final KubernetesClient kubernetesClient;
     private final SharedIndexInformer<PersistentVolumeClaim> pvcInformer;
+
+    @Value("${spring.application.name}")
+    private String applicationName;
 
     private final CountDownLatch waitForStart = new CountDownLatch(1);
 
@@ -154,6 +161,11 @@ public class ReconcileService {
         }
 
         if (status != volumePopulator.getStatus().getStatus()) {
+            sendEvent(
+                    volumePopulator,
+                    "StateChange",
+                    "Reconcile status changed " + status + "->" + volumePopulator.getStatus().getStatus()
+            );
             log.info("Reconcile status changed for pvc {} {}->{}", pvcKey, status, volumePopulator.getStatus().getStatus());
         }
     }
@@ -216,11 +228,23 @@ public class ReconcileService {
                 .resource(primePvc)
                 .serverSideApply();
 
+        sendEvent(
+                volumePopulator,
+                "Provision",
+                "Prime PVC created " + primePvc.getMetadata().getName()
+        );
+
         kubernetesClient
                 .pods()
                 .inNamespace(primePod.getMetadata().getNamespace())
                 .resource(primePod)
                 .serverSideApply();
+
+        sendEvent(
+                volumePopulator,
+                "Provision",
+                "Prime Pod created " + primePod.getMetadata().getName()
+        );
 
         volumePopulator.getStatus().setStatus(ResticVolumePopulatorStatus.Status.PROVISIONING);
         volumePopulator.getStatus().setPrimePod(new ResourceId(primePod).toReference());
@@ -261,6 +285,11 @@ public class ReconcileService {
                 .resource(primePod)
                 .getLog();
 
+        sendEvent(
+                volumePopulator,
+                "Provision",
+                "Prime Pod finished\n" + primePodLog
+        );
         log.debug("Prime pod finished {}", primePodLog);
 
         PersistentVolume persistentVolume = kubernetesClient
@@ -298,6 +327,12 @@ public class ReconcileService {
                     .persistentVolumes()
                     .resource(persistentVolume)
                     .patch(PatchContext.of(PatchType.STRATEGIC_MERGE), patch);
+
+            sendEvent(
+                    volumePopulator,
+                    "Provision",
+                    "PV rebind complete"
+            );
         }
 
         volumePopulator.getStatus().setStatus(ResticVolumePopulatorStatus.Status.CLEANUP);
@@ -333,6 +368,12 @@ public class ReconcileService {
                     .inNamespace(primePod.getMetadata().getNamespace())
                     .resource(primePod)
                     .delete();
+
+            sendEvent(
+                    volumePopulator,
+                    "Provision",
+                    "Prime Pod removed"
+            );
         }
 
         if (primePvc != null) {
@@ -341,6 +382,12 @@ public class ReconcileService {
                     .inNamespace(primePvc.getMetadata().getNamespace())
                     .resource(primePvc)
                     .delete();
+
+            sendEvent(
+                    volumePopulator,
+                    "Provision",
+                    "Prime PVC removed"
+            );
         }
 
         volumePopulator.getStatus().setStatus(ResticVolumePopulatorStatus.Status.FINISHED);
@@ -369,6 +416,45 @@ public class ReconcileService {
         }
 
         runnable.run();
+    }
+
+    private void sendEvent(ResticVolumePopulator volumePopulator, String reason, String note) {
+        String hostname = System.getenv("HOSTNAME");
+        if (hostname == null) {
+            hostname = applicationName;
+        }
+
+        try {
+            kubernetesClient
+                    .events()
+                    .v1()
+                    .events()
+                    .inNamespace(volumePopulator.getMetadata().getNamespace())
+                    .resource(
+                            new EventBuilder()
+                                    .withNewMetadata()
+                                        .withNamespace(volumePopulator.getMetadata().getNamespace())
+                                        .withName(volumePopulator.getMetadata().getName() + "." + UUID.randomUUID())
+                                    .endMetadata()
+                                    .withNewRegarding()
+                                        .withKind(volumePopulator.getKind())
+                                        .withNamespace(volumePopulator.getMetadata().getNamespace())
+                                        .withName(volumePopulator.getMetadata().getName())
+                                        .withUid(volumePopulator.getMetadata().getUid())
+                                    .endRegarding()
+                                    .withType("Normal")
+                                    .withReason(reason)
+                                    .withAction("provision")
+                                    .withNote(note)
+                                    .withEventTime(new MicroTime(Instant.now().toString()))
+                                    .withReportingController(applicationName)
+                                    .withReportingInstance(hostname)
+                                    .build()
+                    )
+                    .create();
+        } catch (Exception e) {
+            log.warn("Failed to submit event {}", e.getMessage());
+        }
     }
 
     private static String getPrimeName(PersistentVolumeClaim pvc) {

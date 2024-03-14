@@ -6,8 +6,10 @@ import com.github.ansarhun.resticvolumepopulator.k8s.ResticVolumePopulator;
 import com.github.ansarhun.resticvolumepopulator.k8s.ResticVolumePopulatorStatus;
 import io.fabric8.kubernetes.api.model.NamespaceBuilder;
 import io.fabric8.kubernetes.api.model.Secret;
+import io.fabric8.kubernetes.api.model.events.v1.Event;
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.dsl.Gettable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +42,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -140,6 +143,21 @@ public class TestProvisioning {
 
     @AfterEach
     void tearDown() {
+        String events = kubernetesClient
+                .events()
+                .v1()
+                .events()
+                .inNamespace(namespace)
+                .withField("regarding.name", "test-populator")
+                .resources()
+                .map(Gettable::get)
+                .map(Event::getNote)
+                .collect(Collectors.joining("\n"));
+
+        System.out.println("--- EVENTS");
+        System.out.println(events);
+        System.out.println("+++");
+
         kubernetesClient
                 .namespaces()
                 .withName(namespace)
