@@ -18,6 +18,12 @@ configurations {
 	}
 }
 
+processResources {
+	filesMatching(["application*.yml"]) {
+		expand(project.properties)
+	}
+}
+
 repositories {
 	mavenCentral()
 }
