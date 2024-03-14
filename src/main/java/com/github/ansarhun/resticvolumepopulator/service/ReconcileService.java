@@ -134,6 +134,7 @@ public class ReconcileService {
 
         if (volumePopulator == null) {
             // wait for volume populator
+            log.debug("Volume populator not found for pvc {}", pvcKey);
             return;
         }
 
@@ -141,12 +142,19 @@ public class ReconcileService {
             volumePopulator.setStatus(new ResticVolumePopulatorStatus());
         }
 
-        switch (volumePopulator.getStatus().getStatus()) {
+        ResticVolumePopulatorStatus.Status status = volumePopulator.getStatus().getStatus();
+        log.info("Reconciling pvc {} with status {}", pvcKey, status);
+
+        switch (status) {
             case UNINITIALIZED -> actionInitialize(pvcKey, volumePopulator);
             case BOUND -> actionProvision(pvcKey, pvc, volumePopulator);
             case PROVISIONING -> actionRebind(pvcKey, pvc, volumePopulator);
             case CLEANUP -> actionCleanup(pvcKey, pvc, volumePopulator);
             case FINISHED -> {}
+        }
+
+        if (status != volumePopulator.getStatus().getStatus()) {
+            log.info("Reconcile status changed for pvc {} {}->{}", pvcKey, status, volumePopulator.getStatus().getStatus());
         }
     }
 
@@ -247,6 +255,14 @@ public class ReconcileService {
             return;
         }
 
+        String primePodLog = kubernetesClient
+                .pods()
+                .inNamespace(primePod.getMetadata().getNamespace())
+                .resource(primePod)
+                .getLog();
+
+        log.debug("Prime pod finished {}", primePodLog);
+
         PersistentVolume persistentVolume = kubernetesClient
                 .persistentVolumes()
                 .withName(primePvc.getSpec().getVolumeName())
@@ -312,14 +328,6 @@ public class ReconcileService {
         }
 
         if (primePod != null) {
-            String primePodLog = kubernetesClient
-                    .pods()
-                    .inNamespace(primePod.getMetadata().getNamespace())
-                    .resource(primePod)
-                    .getLog();
-
-            log.debug("Prime pod finished {}", primePodLog);
-
             kubernetesClient
                     .pods()
                     .inNamespace(primePod.getMetadata().getNamespace())
@@ -474,6 +482,11 @@ public class ReconcileService {
         static ResourceId fromReference(String reference) {
             String[] split = reference.split("/");
             return new ResourceId(split[0], split[1]);
+        }
+
+        @Override
+        public String toString() {
+            return toReference();
         }
     }
 
