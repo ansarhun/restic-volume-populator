@@ -153,7 +153,7 @@ public class ReconcileService {
         log.info("Reconciling pvc {} with status {}", pvcKey, status);
 
         switch (status) {
-            case UNINITIALIZED -> actionInitialize(pvcKey, volumePopulator);
+            case UNINITIALIZED -> actionInitialize(pvcKey, pvc, volumePopulator);
             case BOUND -> actionProvision(pvcKey, pvc, volumePopulator);
             case PROVISIONING -> actionRebind(pvcKey, pvc, volumePopulator);
             case CLEANUP -> actionCleanup(pvcKey, pvc, volumePopulator);
@@ -204,9 +204,20 @@ public class ReconcileService {
 
     /// region Reconcile actions
 
-    private void actionInitialize(ResourceId pvcKey, ResticVolumePopulator volumePopulator) {
-        volumePopulator.getStatus().setStatus(ResticVolumePopulatorStatus.Status.BOUND);
+    private void actionInitialize(ResourceId pvcKey, PersistentVolumeClaim pvc, ResticVolumePopulator volumePopulator) {
         volumePopulator.getStatus().setBoundPVC(pvcKey.toReference());
+
+        if ("Bound".equals(pvc.getStatus().getPhase())) {
+            volumePopulator.getStatus().setStatus(ResticVolumePopulatorStatus.Status.FINISHED);
+
+            sendEvent(
+                    volumePopulator,
+                    "Provision",
+                    "PVC already provisioned " + pvcKey.name
+            );
+        } else {
+            volumePopulator.getStatus().setStatus(ResticVolumePopulatorStatus.Status.BOUND);
+        }
 
         kubernetesClient
                 .resource(volumePopulator)
