@@ -51,6 +51,9 @@ dependencies {
 	testImplementation "org.testcontainers:minio"
 
 	testImplementation 'io.fabric8:kubernetes-server-mock'
+
+	// for native hints
+	implementation 'org.reflections:reflections:0.10.2'
 }
 
 dependencyManagement {
@@ -61,4 +64,21 @@ dependencyManagement {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+graalvmNative {
+	binaries.all {
+		// Added for fabric8
+		buildArgs.add("-H:+AddAllCharsets")
+
+		// For dev builds
+		buildArgs.add("-Ob")
+	}
+}
+
+tasks.named("bootBuildImage") {
+	environment = [
+		// Added for fabric8
+		"BP_NATIVE_IMAGE_BUILD_ARGUMENTS": "-H:+AddAllCharsets"
+	]
 }
