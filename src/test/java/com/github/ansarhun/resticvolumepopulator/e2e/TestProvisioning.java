@@ -218,6 +218,27 @@ public class TestProvisioning {
         );
     }
 
+    @Test
+    void testProvisionedTargetRemoved() throws IOException {
+        testProvision();
+
+        kubernetesClient
+                .persistentVolumeClaims()
+                .inNamespace(namespace)
+                .withName("test-pvc")
+                .delete();
+
+        kubernetesClient
+                .resources(ResticVolumePopulator.class)
+                .inNamespace(namespace)
+                .withName("test-populator")
+                .waitUntilCondition(
+                        vp -> vp.getStatus() != null && ResticVolumePopulatorStatus.Status.UNINITIALIZED == vp.getStatus().getStatus(),
+                        60,
+                        TimeUnit.SECONDS
+                );
+    }
+
     String readDataFromPvc() {
         kubernetesClient
                 .pods()
@@ -235,11 +256,19 @@ public class TestProvisioning {
                         TimeUnit.SECONDS
                 );
 
-        return kubernetesClient
+        String log = kubernetesClient
                 .pods()
                 .inNamespace(namespace)
                 .withName("test-pvc-reader")
                 .getLog();
+
+        kubernetesClient
+                .pods()
+                .inNamespace(namespace)
+                .withName("test-pvc-reader")
+                .delete();
+
+        return log;
     }
 
     static Map<String, String> getResticEnvs() {

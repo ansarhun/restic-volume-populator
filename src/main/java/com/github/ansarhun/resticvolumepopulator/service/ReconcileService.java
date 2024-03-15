@@ -1,6 +1,7 @@
 package com.github.ansarhun.resticvolumepopulator.service;
 
 import com.github.ansarhun.resticvolumepopulator.event.ResourceAdded;
+import com.github.ansarhun.resticvolumepopulator.event.ResourceRemoved;
 import com.github.ansarhun.resticvolumepopulator.event.ResourceUpdated;
 import com.github.ansarhun.resticvolumepopulator.k8s.ResticVolumePopulator;
 import com.github.ansarhun.resticvolumepopulator.k8s.ResticVolumePopulatorStatus;
@@ -112,6 +113,18 @@ public class ReconcileService {
     }
 
     @EventListener
+    public void pvcRemoved(ResourceRemoved<PersistentVolumeClaim> event) {
+        PersistentVolumeClaim persistentVolumeClaim = event.getResource();
+
+        if (!isPvcWithResticVolumePopulator(persistentVolumeClaim)) {
+            return;
+        }
+
+        ResourceId volumePopulatorKey = getVolumePopulatorKey(persistentVolumeClaim);
+        submit(() -> reconcileVolumePopulator(volumePopulatorKey));
+    }
+
+    @EventListener
     public void podUpdated(ResourceUpdated<Pod> event) {
         Pod pod = event.getNewResource();
 
@@ -191,6 +204,32 @@ public class ReconcileService {
                 volumePopulator.getStatus() != null &&
                         volumePopulator.getStatus().getStatus() != ResticVolumePopulatorStatus.Status.UNINITIALIZED
         ) {
+            ResourceId pvcId = ResourceId.fromReference(volumePopulator.getStatus().getBoundPVC());
+            PersistentVolumeClaim persistentVolumeClaim = kubernetesClient
+                    .persistentVolumeClaims()
+                    .inNamespace(pvcId.namespace)
+                    .withName(pvcId.name)
+                    .get();
+            if (persistentVolumeClaim != null) {
+                return;
+            }
+
+            ResticVolumePopulatorStatus.Status status = volumePopulator.getStatus().getStatus();
+            log.info("PVC {} was removed for volume populator {} in {}", pvcId, volumePopulatorKey, status);
+            log.debug("Previous status for volume populator {}: {}", volumePopulatorKey, volumePopulator.getStatus());
+
+            volumePopulator.setStatus(new ResticVolumePopulatorStatus());
+            kubernetesClient
+                    .resource(volumePopulator)
+                    .inNamespace(volumePopulator.getMetadata().getNamespace())
+                    .updateStatus();
+
+            sendEvent(
+                    volumePopulator,
+                    "Provision",
+                    "Target PVC " + pvcId + " lost in status " + status
+            );
+
             return;
         }
 
