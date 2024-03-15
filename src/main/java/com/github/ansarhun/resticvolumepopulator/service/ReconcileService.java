@@ -76,12 +76,18 @@ public class ReconcileService {
         PersistentVolumeClaim pvc = event.getNewResource();
 
         String owner = pvc.getMetadata().getAnnotations().get(OWNER_ANNOTATION_KEY);
-        if (!StringUtils.hasText(owner)) {
+        if (StringUtils.hasText(owner)) {
+            ResourceId ownerId = ResourceId.fromReference(owner);
+            submit(() -> reconcilePVC(ownerId));
             return;
         }
 
-        ResourceId ownerId = ResourceId.fromReference(owner);
-        submit(() -> reconcilePVC(ownerId));
+        // For periodic reconcile
+        if (isPvcWithResticVolumePopulator(pvc)) {
+            ResourceId ownerId = new ResourceId(pvc);
+            submit(() -> reconcilePVC(ownerId));
+            return;
+        }
     }
 
     @EventListener
@@ -150,7 +156,11 @@ public class ReconcileService {
         }
 
         ResticVolumePopulatorStatus.Status status = volumePopulator.getStatus().getStatus();
-        log.info("Reconciling pvc {} with status {}", pvcKey, status);
+        if (status != ResticVolumePopulatorStatus.Status.FINISHED) {
+            log.info("Reconciling pvc {} with status {}", pvcKey, status);
+        } else {
+            log.debug("Reconciling finished pvc {}", pvcKey);
+        }
 
         switch (status) {
             case UNINITIALIZED -> actionInitialize(pvcKey, pvc, volumePopulator);

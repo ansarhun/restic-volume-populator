@@ -27,7 +27,8 @@ import java.util.concurrent.TimeoutException;
 @Slf4j
 @Configuration
 public class KubernetesConfiguration {
-    private static final int RESYNC_PERIOD_IN_MILLIS = 0;
+    private static final int NO_RESYNC = 0;
+    private static final int RESYNC_PERIOD = 60_000;
 
     /// region Client
 
@@ -86,7 +87,7 @@ public class KubernetesConfiguration {
             List<ResourceEventHandler<Pod>> eventHandlers
     ) {
         SharedIndexInformer<Pod> sharedIndexInformer =
-                factory.sharedIndexInformerFor(Pod.class, RESYNC_PERIOD_IN_MILLIS);
+                factory.sharedIndexInformerFor(Pod.class, NO_RESYNC);
         eventHandlers.forEach(sharedIndexInformer::addEventHandler);
         return sharedIndexInformer;
     }
@@ -97,7 +98,7 @@ public class KubernetesConfiguration {
             List<ResourceEventHandler<PersistentVolumeClaim>> eventHandlers
     ) {
         SharedIndexInformer<PersistentVolumeClaim> sharedIndexInformer =
-                factory.sharedIndexInformerFor(PersistentVolumeClaim.class, RESYNC_PERIOD_IN_MILLIS);
+                factory.sharedIndexInformerFor(PersistentVolumeClaim.class, RESYNC_PERIOD);
         eventHandlers.forEach(sharedIndexInformer::addEventHandler);
 
         return sharedIndexInformer;
@@ -109,7 +110,7 @@ public class KubernetesConfiguration {
             List<ResourceEventHandler<ResticVolumePopulator>> eventHandlers
     ) {
         SharedIndexInformer<ResticVolumePopulator> sharedIndexInformer =
-                factory.sharedIndexInformerFor(ResticVolumePopulator.class, RESYNC_PERIOD_IN_MILLIS);
+                factory.sharedIndexInformerFor(ResticVolumePopulator.class, NO_RESYNC);
         eventHandlers.forEach(sharedIndexInformer::addEventHandler);
         return sharedIndexInformer;
     }
