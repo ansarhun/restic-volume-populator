@@ -1,0 +1,84 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '3.2.3'
+	id 'io.spring.dependency-management' version '1.1.4'
+	id 'org.graalvm.buildtools.native' version '0.9.28'
+}
+
+group = 'com.github.ansarhun'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	sourceCompatibility = '21'
+}
+
+configurations {
+	compileOnly {
+		extendsFrom annotationProcessor
+	}
+}
+
+processResources {
+	filesMatching(["application*.yml"]) {
+		expand(project.properties)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'org.springframework.boot:spring-boot-starter-webflux'
+
+	implementation 'io.fabric8:kubernetes-client'
+	implementation 'org.bouncycastle:bcpkix-jdk18on'
+
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+
+	annotationProcessor 'io.fabric8:crd-generator-apt'
+
+	testAndDevelopmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'io.projectreactor:reactor-test'
+	testImplementation 'org.testcontainers:junit-jupiter'
+
+	testImplementation 'org.testcontainers:k3s'
+	testImplementation "org.testcontainers:minio"
+
+	testImplementation 'io.fabric8:kubernetes-server-mock'
+
+	// for native hints
+	implementation 'org.reflections:reflections:0.10.2'
+}
+
+dependencyManagement {
+	imports {
+		mavenBom 'io.fabric8:kubernetes-client:6.10.0'
+	}
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
+graalvmNative {
+	binaries.all {
+		// Added for fabric8
+		buildArgs.add("-H:+AddAllCharsets")
+
+		// For dev builds
+		buildArgs.add("-Ob")
+	}
+}
+
+tasks.named("bootBuildImage") {
+	environment = [
+		// Added for fabric8
+		"BP_NATIVE_IMAGE_BUILD_ARGUMENTS": "-H:+AddAllCharsets"
+	]
+}

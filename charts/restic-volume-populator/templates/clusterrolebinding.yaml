@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "restic-volume-populator.fullname" . }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "restic-volume-populator.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "restic-volume-populator.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}

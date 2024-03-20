@@ -1,0 +1,7 @@
+apiVersion: ansarhun.github.com/v1alpha1
+kind: ResticVolumePopulator
+metadata:
+  name: test-populator
+spec:
+  secretName: test-restic
+  hostname: e2e-test
