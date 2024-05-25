@@ -59,7 +59,7 @@ dependencies {
 
 dependencyManagement {
 	imports {
-		mavenBom 'io.fabric8:kubernetes-client:6.10.0'
+		mavenBom 'io.fabric8:kubernetes-client:6.12.1'
 	}
 }
 
