@@ -1,7 +1,6 @@
 package com.github.ansarhun.resticvolumepopulator.e2e;
 
 import com.github.ansarhun.resticvolumepopulator.Versions;
-import com.github.ansarhun.resticvolumepopulator.config.KubernetesConfiguration;
 import com.github.ansarhun.resticvolumepopulator.k8s.ResticVolumePopulator;
 import com.github.ansarhun.resticvolumepopulator.k8s.ResticVolumePopulatorStatus;
 import io.fabric8.kubernetes.api.model.NamespaceBuilder;
@@ -9,21 +8,17 @@ import io.fabric8.kubernetes.api.model.Secret;
 import io.fabric8.kubernetes.api.model.events.v1.Event;
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.KubernetesClientBuilder;
 import io.fabric8.kubernetes.client.dsl.Gettable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.ApplicationListener;
-import org.springframework.context.annotation.Bean;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.util.FileCopyUtils;
-import org.testcontainers.containers.*;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.Network;
 import org.testcontainers.containers.startupcheck.OneShotStartupCheckStrategy;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Container;
@@ -49,23 +44,22 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 @Testcontainers(parallel = true)
-@SpringBootTest
-public class TestProvisioning {
+public abstract class TestProvisioning {
 
-    private static final String MINIOADMIN = "minioadmin";
-    private static final String BUCKET = "test";
-    private static final String PATH = "lorem";
-    private static final String RESTIC_PASSWORD = "p4ssw0rd";
+    protected static final String MINIOADMIN = "minioadmin";
+    protected static final String BUCKET = "test";
+    protected static final String PATH = "lorem";
+    protected static final String RESTIC_PASSWORD = "p4ssw0rd";
 
-    private static Network network = Network.newNetwork();
+    protected static Network network = Network.newNetwork();
 
     @Container
-    private static final K3sContainer K3S_CONTAINER =
+    protected static final K3sContainer K3S_CONTAINER =
             new K3sContainer(DockerImageName.parse(Versions.K3S_VERSION))
                     .withNetwork(network);
 
     @Container
-    private static final GenericContainer<?> MINIO_CONTAINER =
+    protected static final GenericContainer<?> MINIO_CONTAINER =
             new GenericContainer<>(DockerImageName.parse(Versions.MINIO_VERSION))
                     .withExposedPorts(9000, 9001)
                     .waitingFor(Wait.forHttp("/minio/health/live").forPort(9000).withStartupTimeout(Duration.of(60L, ChronoUnit.SECONDS)))
@@ -77,47 +71,9 @@ public class TestProvisioning {
                             "MINIO_ROOT_PASSWORD", MINIOADMIN
                     ));
 
-    @TestConfiguration
-    public static class Configuration {
-        @Bean
-        public KubernetesConfiguration.KubernetesClientBuilderCustomizer testKubernetesClient() {
-            return kubernetesClientBuilder ->
-                    kubernetesClientBuilder.withConfig(
-                            Config.fromKubeconfig(K3S_CONTAINER.getKubeConfigYaml())
-                    );
-        }
-
-        @Bean
-        public ApplicationListener<ApplicationReadyEvent> writeKubeConfigFile() {
-            return event -> {
-                try {
-                    File kubeConfigFile = new File("build/test-kubeconfig.yaml");
-                    kubeConfigFile.deleteOnExit();
-
-                    if (!kubeConfigFile.exists()) {
-                        try (FileWriter writer = new FileWriter(kubeConfigFile)) {
-                            writer.write(K3S_CONTAINER.getKubeConfigYaml());
-                        }
-                    }
-
-                    System.out.println("=========================");
-                    System.out.println("=========================");
-                    System.out.printf("|| Kubernetes Config file generated at: %s\n", kubeConfigFile.getAbsolutePath());
-                    System.out.printf("|| export KUBECONFIG=%s\n", kubeConfigFile.getAbsolutePath());
-                    System.out.println("=========================");
-                    System.out.println("=========================");
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            };
-        }
-    }
-
-    @Autowired
     KubernetesClient kubernetesClient;
 
-    @Value("classpath:test-source/sample.txt")
-    Resource resource;
+    Resource resource = new ClassPathResource("test-source/sample.txt");
 
     String namespace;
 
@@ -127,9 +83,37 @@ public class TestProvisioning {
         executeRestic("--verbose backup .");
     }
 
+    @BeforeAll
+    static void writeKubeConfigFile() {
+        try {
+            File kubeConfigFile = new File("build/test-kubeconfig.yaml");
+            kubeConfigFile.deleteOnExit();
+
+            if (!kubeConfigFile.exists()) {
+                try (FileWriter writer = new FileWriter(kubeConfigFile)) {
+                    writer.write(K3S_CONTAINER.getKubeConfigYaml());
+                }
+            }
+
+            System.out.println("=========================");
+            System.out.println("=========================");
+            System.out.printf("|| Kubernetes Config file generated at: %s\n", kubeConfigFile.getAbsolutePath());
+            System.out.printf("|| export KUBECONFIG=%s\n", kubeConfigFile.getAbsolutePath());
+            System.out.println("=========================");
+            System.out.println("=========================");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     @BeforeEach
     void setUp() {
         namespace = UUID.randomUUID().toString();
+
+        kubernetesClient =
+                new KubernetesClientBuilder()
+                        .withConfig(Config.fromKubeconfig(K3S_CONTAINER.getKubeConfigYaml()))
+                        .build();
 
         kubernetesClient
                 .namespaces()
