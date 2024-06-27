@@ -14,6 +14,8 @@ public class ResticVolumePopulatorSpec {
 
     private String snapshot = "latest";
 
+    private boolean allowUninitializedRepository = false;
+
     private Image image = new Image();
 
     @Data

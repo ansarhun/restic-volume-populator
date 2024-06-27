@@ -39,6 +39,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -53,6 +54,7 @@ public class TestProvisioning {
 
     private static final String MINIOADMIN = "minioadmin";
     private static final String BUCKET = "test";
+    private static final String PATH = "lorem";
     private static final String RESTIC_PASSWORD = "p4ssw0rd";
 
     private static Network network = Network.newNetwork();
@@ -239,11 +241,106 @@ public class TestProvisioning {
                 );
     }
 
+    @Test
+    void testProvisionWithNonInitializedRepository() throws IOException {
+        Secret secret = kubernetesClient
+                .secrets()
+                .inNamespace(namespace)
+                .load(getClass().getResourceAsStream("/test-resources/secret.yaml"))
+                .item();
+
+        Map<String, String> resticEnvs = new HashMap<>(getResticEnvs());
+        resticEnvs.put("RESTIC_REPOSITORY", resticEnvs.get("RESTIC_REPOSITORY") + "-ipsum");
+        secret.setStringData(resticEnvs);
+
+        kubernetesClient
+                .secrets()
+                .inNamespace(namespace)
+                .resource(secret)
+                .create();
+
+        kubernetesClient
+                .persistentVolumeClaims()
+                .inNamespace(namespace)
+                .load(getClass().getResourceAsStream("/test-resources/pvc.yaml"))
+                .create();
+
+        ResticVolumePopulator resticVolumePopulator = kubernetesClient
+                .resources(ResticVolumePopulator.class)
+                .inNamespace(namespace)
+                .load(getClass().getResourceAsStream("/test-resources/volume-populator.yaml"))
+                .item();
+        resticVolumePopulator.getSpec().setAllowUninitializedRepository(true);
+
+        kubernetesClient
+                .resources(ResticVolumePopulator.class)
+                .inNamespace(namespace)
+                .resource(resticVolumePopulator)
+                .create();
+
+        kubernetesClient
+                .resources(ResticVolumePopulator.class)
+                .inNamespace(namespace)
+                .withName("test-populator")
+                .waitUntilCondition(
+                        vp -> vp.getStatus() != null && ResticVolumePopulatorStatus.Status.FINISHED == vp.getStatus().getStatus(),
+                        60,
+                        TimeUnit.SECONDS
+                );
+
+        kubernetesClient
+                .persistentVolumeClaims()
+                .inNamespace(namespace)
+                .withName("test-pvc")
+                .waitUntilCondition(
+                        pvc -> pvc.getStatus() != null && "Bound".equals(pvc.getStatus().getPhase()),
+                        5,
+                        TimeUnit.SECONDS
+                );
+
+        assertThat(
+                listFromPvc(),
+                equalTo(".\n..\n")
+        );
+    }
+
     String readDataFromPvc() {
         kubernetesClient
                 .pods()
                 .inNamespace(namespace)
-                .load(getClass().getResourceAsStream("/test-resources/pod.yaml"))
+                .load(getClass().getResourceAsStream("/test-resources/pod-cat.yaml"))
+                .create();
+
+        kubernetesClient
+                .pods()
+                .inNamespace(namespace)
+                .withName("test-pvc-reader")
+                .waitUntilCondition(
+                        pod -> "Succeeded".equals(pod.getStatus().getPhase()),
+                        60,
+                        TimeUnit.SECONDS
+                );
+
+        String log = kubernetesClient
+                .pods()
+                .inNamespace(namespace)
+                .withName("test-pvc-reader")
+                .getLog();
+
+        kubernetesClient
+                .pods()
+                .inNamespace(namespace)
+                .withName("test-pvc-reader")
+                .delete();
+
+        return log;
+    }
+
+    String listFromPvc() {
+        kubernetesClient
+                .pods()
+                .inNamespace(namespace)
+                .load(getClass().getResourceAsStream("/test-resources/pod-ls.yaml"))
                 .create();
 
         kubernetesClient
@@ -287,7 +384,7 @@ public class TestProvisioning {
                                 .stream().findAny()
                                 .orElseThrow()
                                 .getIpAddress() +
-                        ":9000/" + BUCKET
+                        ":9000/" + BUCKET + "/" + PATH
         );
     }
 
