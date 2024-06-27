@@ -51,11 +51,15 @@ public abstract class TestProvisioning {
     protected static final String PATH = "lorem";
     protected static final String RESTIC_PASSWORD = "p4ssw0rd";
 
+    protected static final String BUILD_TEST_KUBECONFIG_YAML = "./build/test-kubeconfig.yaml";
+
     protected static Network network = Network.newNetwork();
 
     @Container
     protected static final K3sContainer K3S_CONTAINER =
             new K3sContainer(DockerImageName.parse(Versions.K3S_VERSION))
+                    .withCreateContainerCmdModifier(cmd -> cmd.withHostName("k3s"))
+                    .withNetworkAliases("k3s")
                     .withNetwork(network);
 
     @Container
@@ -86,7 +90,7 @@ public abstract class TestProvisioning {
     @BeforeAll
     static void writeKubeConfigFile() {
         try {
-            File kubeConfigFile = new File("build/test-kubeconfig.yaml");
+            File kubeConfigFile = new File(BUILD_TEST_KUBECONFIG_YAML);
             kubeConfigFile.deleteOnExit();
 
             if (!kubeConfigFile.exists()) {
