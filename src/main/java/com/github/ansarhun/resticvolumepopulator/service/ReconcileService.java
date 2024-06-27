@@ -21,9 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 
@@ -335,7 +333,10 @@ public class ReconcileService {
             return;
         }
 
-        if (!"Succeeded".equals(primePod.getStatus().getPhase())) {
+        if (
+                primePod.getStatus().getContainerStatuses().isEmpty() ||
+                primePod.getStatus().getContainerStatuses().getFirst().getState().getTerminated() == null
+        ) {
             return;
         }
 
@@ -345,12 +346,32 @@ public class ReconcileService {
                 .resource(primePod)
                 .getLog();
 
+        ContainerStateTerminated terminated = primePod.getStatus().getContainerStatuses().getFirst().getState().getTerminated();
+
         sendEvent(
                 volumePopulator,
                 "Provision",
-                "Prime Pod finished\n" + primePodLog
+                "Prime Pod finished (" + terminated.getExitCode() + ")\n" + primePodLog
         );
         log.debug("Prime pod finished {}", primePodLog);
+
+        switch (terminated.getReason()) {
+            case "Error" -> {
+                if (
+                        !volumePopulator.getSpec().isAllowUninitializedRepository() ||
+                        !primePodLog.contains("Is there a repository at the following location?")
+                ) {
+                    return;
+                }
+
+                log.debug("Uninitialized repository found");
+            }
+            case "Completed" -> {}
+
+            case null, default -> {
+                return;
+            }
+        }
 
         PersistentVolume persistentVolume = kubernetesClient
                 .persistentVolumes()
