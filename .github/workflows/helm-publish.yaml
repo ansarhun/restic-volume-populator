@@ -36,11 +36,6 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v4.1.0
 
-      - name: Prepare Chart
-        run: |
-          mkdir -p ./charts/restic-volume-populator/crds
-          cp ./build/classes/java/main/META-INF/fabric8/resticvolumepopulators.ansarhun.github.com-v1.yml ./charts/restic-volume-populator/crds/
-
       - name: Validate Chart
         run: |
           helm lint ./charts/restic-volume-populator
