@@ -64,13 +64,14 @@ With these resources, the operator will provision the **PersistentVolumeClaim** 
 
 ## ResticVolumePopulator resource
 
-| Field            | Required           | Default value | Description                                                                                                      |
-|------------------|--------------------|---------------|------------------------------------------------------------------------------------------------------------------|
-| secretName       | :white_check_mark: |               | The name of the secret containing parameters for the restic command, e.g.: `RESTIC_REPOSITORY`                   |
-| hostname         | :white_check_mark: |               | The name of the host from the restic snapshot, e.g.: `volsync` for [VolSync](https://github.com/backube/volsync) |
-| snapshot         |                    | latest        | The id/name of the snapshot                                                                                      |
-| image.repository |                    | restic/restic | Image to use for restic restore                                                                                  |
-| image.tag        |                    | latest        | Image tag to use for restic restore                                                                              |
+| Field                        | Required           | Default value | Description                                                                                                      |
+|------------------------------|--------------------|---------------|------------------------------------------------------------------------------------------------------------------|
+| secretName                   | :white_check_mark: |               | The name of the secret containing parameters for the restic command, e.g.: `RESTIC_REPOSITORY`                   |
+| hostname                     | :white_check_mark: |               | The name of the host from the restic snapshot, e.g.: `volsync` for [VolSync](https://github.com/backube/volsync) |
+| snapshot                     |                    | latest        | The id/name of the snapshot                                                                                      |
+| allowUninitializedRepository |                    | false         | Allow provision from an uninitialized repository (will result in an empty PVC)                                   |
+| image.repository             |                    | restic/restic | Image to use for restic restore                                                                                  |
+| image.tag                    |                    | latest        | Image tag to use for restic restore                                                                              |
 
 ## Project status
 
