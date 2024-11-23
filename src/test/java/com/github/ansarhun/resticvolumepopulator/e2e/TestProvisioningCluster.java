@@ -1,11 +1,13 @@
 package com.github.ansarhun.resticvolumepopulator.e2e;
 
-import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.testcontainers.utility.MountableFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 
 public class TestProvisioningCluster extends TestProvisioning {
 
@@ -18,7 +20,13 @@ public class TestProvisioningCluster extends TestProvisioning {
         File dockerImageFile = new File("build/docker.image");
         dockerImageFile.deleteOnExit();
 
-        FileUtils.copyInputStreamToFile(process.getInputStream(), dockerImageFile);
+        try (InputStream inputStream = process.getInputStream()) {
+            Files.copy(
+                    inputStream,
+                    dockerImageFile.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING
+            );
+        }
 
         K3S_CONTAINER.copyFileToContainer(
                 MountableFile.forHostPath("./build/docker.image"),
