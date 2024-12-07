@@ -1,8 +1,8 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '3.3.1'
-	id 'io.spring.dependency-management' version '1.1.5'
-	id 'org.graalvm.buildtools.native' version '0.10.2'
+	id 'org.springframework.boot' version '3.4.0'
+	id 'io.spring.dependency-management' version '1.1.6'
+	id 'org.graalvm.buildtools.native' version '0.10.3'
 }
 
 group = 'com.github.ansarhun'
@@ -10,7 +10,7 @@ version = '0.0.1-SNAPSHOT'
 
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(22)
+		languageVersion = JavaLanguageVersion.of(23)
 	}
 }
 
@@ -30,17 +30,19 @@ repositories {
 	mavenCentral()
 }
 
+def fabric8Version = '6.13.4'
+
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
 
-	implementation 'io.fabric8:kubernetes-client'
-	implementation 'org.bouncycastle:bcpkix-jdk18on'
+	implementation "io.fabric8:kubernetes-client:${fabric8Version}"
+	implementation 'org.bouncycastle:bcpkix-jdk18on:1.79'
 
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 
-	annotationProcessor 'io.fabric8:crd-generator-apt'
+	annotationProcessor "io.fabric8:crd-generator-apt:${fabric8Version}"
 
 	testAndDevelopmentOnly 'org.springframework.boot:spring-boot-devtools'
 
@@ -53,16 +55,10 @@ dependencies {
 	testImplementation 'org.testcontainers:k3s'
 	testImplementation "org.testcontainers:minio"
 
-	testImplementation 'io.fabric8:kubernetes-server-mock'
+	testImplementation "io.fabric8:kubernetes-server-mock:${fabric8Version}"
 
 	// for native hints
 	implementation 'org.reflections:reflections:0.10.2'
-}
-
-dependencyManagement {
-	imports {
-		mavenBom 'io.fabric8:kubernetes-client:6.12.1'
-	}
 }
 
 tasks.named('test') {
@@ -76,6 +72,11 @@ graalvmNative {
 
 		// For dev builds
 		buildArgs.add("-Ob")
+	}
+
+	// https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.4-Release-Notes#netty-in-native-image
+	metadataRepository {
+		version = '0.3.14'
 	}
 }
 

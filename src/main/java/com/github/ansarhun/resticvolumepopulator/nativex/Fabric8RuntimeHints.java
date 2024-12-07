@@ -85,26 +85,29 @@ public class Fabric8RuntimeHints {
                     .forEach(c -> hints.reflection().registerType(c, MemberCategory.values()));
         }
 
-        @SneakyThrows
         private <R extends Annotation> Set<Class<?>> resolveSerializationClasses(Class<R> annotationClazz, Reflections reflections) {
-            Method method = annotationClazz.getMethod("using");
-            Set<Class<?>> classes = reflections.getTypesAnnotatedWith(annotationClazz);
-            return classes
-                    .stream()
-                    .map(c -> {
-                        var annotation = c.getAnnotation(annotationClazz);
-                        if (annotation == null) {
-                            return null;
-                        }
+            try {
+                Method method = annotationClazz.getMethod("using");
+                Set<Class<?>> classes = reflections.getTypesAnnotatedWith(annotationClazz);
+                return classes
+                        .stream()
+                        .map(c -> {
+                            var annotation = c.getAnnotation(annotationClazz);
+                            if (annotation == null) {
+                                return null;
+                            }
 
-                        try {
-                            return (Class<?>) method.invoke(annotation);
-                        } catch (IllegalAccessException | InvocationTargetException e) {
-                            return null;
-                        }
-                    })
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toSet());
+                            try {
+                                return (Class<?>) method.invoke(annotation);
+                            } catch (IllegalAccessException | InvocationTargetException e) {
+                                return null;
+                            }
+                        })
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
+            } catch (NoSuchMethodException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 }
