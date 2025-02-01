@@ -30,14 +30,13 @@ repositories {
 	mavenCentral()
 }
 
-def fabric8Version = '6.13.4'
+def fabric8Version = '7.1.0'
 
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
 
 	implementation "io.fabric8:kubernetes-client:${fabric8Version}"
-	implementation 'org.bouncycastle:bcpkix-jdk18on:1.79'
 
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
