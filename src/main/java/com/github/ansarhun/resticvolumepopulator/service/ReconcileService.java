@@ -198,6 +198,11 @@ public class ReconcileService {
                 .withName(volumePopulatorKey.name)
                 .get();
 
+        if (volumePopulator == null) {
+            log.info("Volume populator not found {}", volumePopulatorKey);
+            return;
+        }
+
         if (
                 volumePopulator.getStatus() != null &&
                         volumePopulator.getStatus().getStatus() != ResticVolumePopulatorStatus.Status.UNINITIALIZED

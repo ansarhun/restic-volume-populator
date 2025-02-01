@@ -10,7 +10,6 @@ import io.fabric8.kubernetes.api.model.KubernetesResource;
 import io.fabric8.kubernetes.api.model.KubernetesResourceList;
 import io.fabric8.kubernetes.client.Client;
 import io.fabric8.kubernetes.client.VersionInfo;
-import lombok.SneakyThrows;
 import org.reflections.Reflections;
 import org.reflections.util.ConfigurationBuilder;
 import org.springframework.aot.hint.*;
@@ -41,7 +40,8 @@ public class Fabric8RuntimeHints {
         private void registerResources(RuntimeHints hints) {
             Set.of(
                     "META-INF/services/io.fabric8.kubernetes.api.model.KubernetesResource",
-                    "META-INF/services/io.fabric8.kubernetes.client.http.HttpClient$Factory"
+                    "META-INF/services/io.fabric8.kubernetes.client.http.HttpClient$Factory",
+                    "META-INF/vertx/vertx-version.txt"
             ).forEach(hints.resources()::registerPattern);
         }
 
