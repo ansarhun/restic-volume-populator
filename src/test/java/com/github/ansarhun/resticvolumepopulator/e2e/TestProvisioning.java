@@ -18,9 +18,9 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.util.FileCopyUtils;
 import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.startupcheck.OneShotStartupCheckStrategy;
-import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.k3s.K3sContainer;
@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -46,7 +45,6 @@ import static org.hamcrest.Matchers.equalTo;
 @Testcontainers(parallel = true)
 public abstract class TestProvisioning {
 
-    protected static final String MINIOADMIN = "minioadmin";
     protected static final String BUCKET = "test";
     protected static final String PATH = "lorem";
     protected static final String RESTIC_PASSWORD = "p4ssw0rd";
@@ -63,17 +61,10 @@ public abstract class TestProvisioning {
                     .withNetwork(network);
 
     @Container
-    protected static final GenericContainer<?> MINIO_CONTAINER =
-            new GenericContainer<>(DockerImageName.parse(Versions.MINIO_VERSION))
-                    .withExposedPorts(9000, 9001)
-                    .waitingFor(Wait.forHttp("/minio/health/live").forPort(9000).withStartupTimeout(Duration.of(60L, ChronoUnit.SECONDS)))
+    protected static final MinIOContainer MINIO_CONTAINER
+            = new MinIOContainer(DockerImageName.parse(Versions.MINIO_VERSION))
                     .withNetwork(network)
-                    .withNetworkAliases("minio")
-                    .withEnv(Map.of(
-                            "MINIO_DEFAULT_BUCKETS", BUCKET,
-                            "MINIO_ROOT_USER", MINIOADMIN,
-                            "MINIO_ROOT_PASSWORD", MINIOADMIN
-                    ));
+                    .withNetworkAliases("minio");
 
     KubernetesClient kubernetesClient;
 
@@ -82,9 +73,19 @@ public abstract class TestProvisioning {
     String namespace;
 
     @BeforeAll
-    static void beforeAll() {
-        executeRestic("--verbose init");
-        executeRestic("--verbose backup .");
+    static void beforeAll() throws IOException, InterruptedException {
+        org.testcontainers.containers.Container.ExecResult execResult = MINIO_CONTAINER.execInContainer(
+                "mc", "alias", "set", "local", "http://localhost:9000", MINIO_CONTAINER.getUserName(), MINIO_CONTAINER.getPassword()
+        );
+        assertThat(execResult.getStdout(), execResult.getExitCode(), equalTo(0));
+
+        execResult = MINIO_CONTAINER.execInContainer(
+                "mc", "mb", "local/" + BUCKET
+        );
+        assertThat(execResult.getStdout(), execResult.getExitCode(), equalTo(0));
+
+        executeRestic("--verbose=2 init");
+        executeRestic("--verbose=2 backup .");
     }
 
     @BeforeAll
@@ -358,8 +359,8 @@ public abstract class TestProvisioning {
 
     static Map<String, String> getResticEnvs() {
         return Map.of(
-                "AWS_ACCESS_KEY_ID", MINIOADMIN,
-                "AWS_SECRET_ACCESS_KEY", MINIOADMIN,
+                "AWS_ACCESS_KEY_ID", MINIO_CONTAINER.getUserName(),
+                "AWS_SECRET_ACCESS_KEY", MINIO_CONTAINER.getPassword(),
                 "RESTIC_PASSWORD", RESTIC_PASSWORD,
 
                 "RESTIC_REPOSITORY",
